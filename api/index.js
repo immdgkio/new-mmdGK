@@ -2,7 +2,7 @@ export const config = {
   runtime: "edge",
 };
 
-const TARGET_BASE = (process.env.TARGET_DOMAIN || "").replace(//$/, "");
+const TARGET_BASE = (process.env.TARGET_DOMAIN || "").replace(/\/$/, "");
 
 const STRIP_HEADERS = new Set([
   "host",
@@ -69,3 +69,4 @@ export default async function handler(req) {
   } catch (err) {
     return new Response("Bad Gateway: Tunnel Failed", { status: 502 });
   }
+}
