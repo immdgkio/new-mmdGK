@@ -1,0 +1,7 @@
+{
+  "projectName": "vercel-xhttp-relay",
+  "projectVersion": "1.0.0",
+  "projectDescription": "Serverless XHTTP relay for Xray/V2Ray on Vercel (Edge Runtime)",
+  "isPrivate": true,
+  "licenseType": "MIT"
+}
