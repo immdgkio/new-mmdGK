@@ -2,9 +2,9 @@ export const config = {
   runtime: "edge",
 };
 
-const BASE_URL = (process.env.TARGET_DOMAIN || "").replace(//$/, "");
+const TARGET_BASE = (process.env.TARGET_DOMAIN || "").replace(//$/, "");
 
-const EXCLUDED_HEADERS = new Set([
+const STRIP_HEADERS = new Set([
   "host",
   "connection",
   "keep-alive",
@@ -20,58 +20,52 @@ const EXCLUDED_HEADERS = new Set([
   "x-forwarded-port",
 ]);
 
-async function proxyRequest(request) {
-  if (!BASE_URL) {
+export default async function handler(req) {
+  if (!TARGET_BASE) {
     return new Response("Misconfigured: TARGET_DOMAIN is not set", { status: 500 });
   }
 
   try {
-    const requestUrl = new URL(request.url);
-    const targetRequestUrl = BASE_URL + requestUrl.pathname + requestUrl.search;
+    const url = new URL(req.url);
+    const targetUrl = TARGET_BASE + url.pathname + url.search;
 
-    const requestHeaders = new Headers();
-    let clientIpAddress = null;
-
-    for (const [headerKey, headerValue] of request.headers) {
-      const lowerCaseKey = headerKey.toLowerCase();
-      if (EXCLUDED_HEADERS.has(lowerCaseKey)) continue;
-      if (lowerCaseKey.startsWith("x-vercel-")) continue;
-      if (lowerCaseKey === "x-real-ip") { clientIpAddress = headerValue; continue; }
-      if (lowerCaseKey === "x-forwarded-for") { if (!clientIpAddress) clientIpAddress = headerValue; continue; }
-      requestHeaders.set(lowerCaseKey, headerValue);
+    const headers = new Headers();
+    let clientIp = null;
+    for (const [key, value] of req.headers) {
+      const k = key.toLowerCase();
+      if (STRIP_HEADERS.has(k)) continue;
+      if (k.startsWith("x-vercel-")) continue;
+      if (k === "x-real-ip") { clientIp = value; continue; }
+      if (k === "x-forwarded-for") { if (!clientIp) clientIp = value; continue; }
+      headers.set(k, value);
     }
+    if (clientIp) headers.set("x-forwarded-for", clientIp);
 
-    if (clientIpAddress) requestHeaders.set("x-forwarded-for", clientIpAddress);
+    const method = req.method;
+    const hasBody = method !== "GET" && method !== "HEAD";
 
-    const httpMethod = request.method;
-    const hasRequestBody = httpMethod !== "GET" && httpMethod !== "HEAD";
-
-    const fetchOptions = {
-      method: httpMethod,
-      headers: requestHeaders,
+    const fetchOpts = {
+      method,
+      headers,
       redirect: "manual",
     };
-
-    if (hasRequestBody) {
-      fetchOptions.body = request.body;
-      fetchOptions.duplex = "half";
+    if (hasBody) {
+      fetchOpts.body = req.body;
+      fetchOpts.duplex = "half";
     }
 
-    const upstreamResponse = await fetch(targetRequestUrl, fetchOptions);
+    const upstream = await fetch(targetUrl, fetchOpts);
 
-    const responseHeaders = new Headers();
-    for (const [headerKey, headerValue] of upstreamResponse.headers) {
-      if (headerKey.toLowerCase() === "transfer-encoding") continue;
-      responseHeaders.set(headerKey, headerValue);
+    const respHeaders = new Headers();
+    for (const [k, v] of upstream.headers) {
+      if (k.toLowerCase() === "transfer-encoding") continue;
+      respHeaders.set(k, v);
     }
 
-    return new Response(upstreamResponse.body, {
-      status: upstreamResponse.status,
-      headers: responseHeaders,
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: respHeaders,
     });
-  } catch (error) {
+  } catch (err) {
     return new Response("Bad Gateway: Tunnel Failed", { status: 502 });
   }
-}
-
-export default proxyRequest;
