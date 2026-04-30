@@ -1,8 +1,7 @@
 {
-  "Version": 2,
-  "serviceName": "cloud-xhttp-proxy",
-     "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
+  "name": "cloud-xhttp-proxy",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/handler" }
   ],
   "trailingSlash": false
 }
